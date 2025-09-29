@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DD News Live Signage</title>
+    <!-- Load Tailwind CSS (even though we're using custom CSS for maximization) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* CRITICAL: Ensures the page has no margins or padding and takes up the full viewport */
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background-color: #000; /* Black background for signage mode */
+        }
+
+        /* Maximizes the player container to fill the entire screen */
+        #player-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Overrides the video-wrapper styling for true full-screen mode */
+        .video-wrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            padding-bottom: 0 !important; /* Remove aspect ratio padding */
+            overflow: hidden;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- This is the container where the YouTube player will be injected, maximized to 100% viewport -->
+    <div id="player-container" class="video-wrapper">
+        <div id="player-loader" class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center text-white text-3xl font-bold">
+            Loading DD News Live Stream...
+            <p class="text-lg font-normal mt-2 text-red-400">Attempting Unmuted Autoplay (Requires Browser Configuration)</p>
+        </div>
+    </div>
+
+    <!-- 1. Loads the YouTube IFrame Player API code asynchronously. -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script>
+        let player;
+        const videoContainer = document.getElementById('player-container');
+
+        // DD News Live Stream ID
+        const CONTENT_ID = 'ft_IQxMBshs';
+        
+        // 2. The API calls this function when the script is loaded.
+        function onYouTubeIframeAPIReady() {
+            // NOTE: Error 101/150 (Embedding Disabled) is the only thing that can prevent this from running.
+            
+            const playerConfig = {
+                height: '100%',
+                width: '100%',
+                videoId: CONTENT_ID, 
+                playerVars: {
+                    'autoplay': 1,         // Attempt auto-start
+                    // Removed 'mute: 1' to allow sound
+                    'controls': 0,         // Hide all player controls (signage mode)
+                    'modestbranding': 1,   // Less prominent YouTube logo
+                    'enablejsapi': 1       // Enables API control
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onError': onPlayerError // Add error handler
+                }
+            };
+            
+            player = new YT.Player('player-container', playerConfig);
+        }
+
+        // 3. The API will call this function when the video player is ready.
+        function onPlayerReady(event) {
+            // Remove the loader text now that the player is ready
+            const playerLoader = document.getElementById('player-loader');
+            if (playerLoader) {
+                playerLoader.remove();
+            }
+
+            // Explicitly call unMute and play video. This is the code part of the fix.
+            // The unMute() call is what most browsers will block unless configured externally.
+            event.target.unMute();
+            event.target.playVideo();
+            console.log('Player ready. Attempting UNMUTED full-screen playback...');
+        }
+
+
+        // 4. Handle potential playback errors, displaying the error message full-screen.
+        function onPlayerError(event) {
+            let errorText = 'An unknown YouTube playback error occurred.';
+            switch (event.data) {
+                case 2:
+                    errorText = 'Invalid video ID or the video is restricted from playback.';
+                    break;
+                case 5:
+                    errorText = 'The requested content cannot be played in an HTML5 player.';
+                    break;
+                case 100:
+                    errorText = 'Video not found or is marked as private.';
+                    break;
+                case 101:
+                case 150:
+                    // This is the common "Watch on YouTube" error code (embed disabled)
+                    errorText = 'The video owner has disabled embedding for this live stream.';
+                    break;
+            }
+            console.error('YouTube Player Error:', event.data, errorText);
+            
+            // Display the full-screen error message for signage visibility
+            videoContainer.innerHTML = `
+                <div class="absolute inset-0 bg-red-900 flex flex-col items-center justify-center text-white p-8">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20 mb-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                    <p class="font-bold text-3xl">LIVESTREAM ERROR (${event.data})</p>
+                    <p class="text-xl mt-2 text-center">${errorText}</p>
+                    <p class="text-base mt-4 opacity-75">Embedding failed. Check browser settings and stream permissions.</p>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
